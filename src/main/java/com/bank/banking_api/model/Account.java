@@ -1,16 +1,15 @@
 package com.bank.banking_api.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.math.BigDecimal;
 
 @Entity
 @Table(name = "accounts")
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -37,7 +36,8 @@ public class Account {
     @Builder.Default
     private AccountStatus status = AccountStatus.ACTIVE;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "user_id", nullable = false)
+    @JsonIgnoreProperties({"accounts", "hibernateLazyInitializer", "handler"})
     private User user;
 }
