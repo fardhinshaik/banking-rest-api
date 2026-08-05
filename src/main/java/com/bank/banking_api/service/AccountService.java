@@ -19,7 +19,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -28,6 +30,14 @@ public class AccountService {
     private final AccountRepository accountRepository;
     private final TransactionRepository transactionRepository;
     private final UserService userService;
+
+    // Added: Method to get all accounts for GET /api/v1/accounts
+    public List<AccountResponseDTO> getAllAccounts() {
+        return accountRepository.findAll()
+                .stream()
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
+    }
 
     @Transactional
     public AccountResponseDTO createAccount(CreateAccountDTO request) {

@@ -12,12 +12,21 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/v1/accounts")
 @RequiredArgsConstructor
 public class AccountController {
 
     private final AccountService accountService;
+
+    // Added: Handles GET requests on /api/v1/accounts
+    @GetMapping
+    public ResponseEntity<List<AccountResponseDTO>> getAllAccounts() {
+        List<AccountResponseDTO> response = accountService.getAllAccounts();
+        return new ResponseEntity<>(response, HttpStatus.OK);
+    }
 
     @PostMapping
     public ResponseEntity<AccountResponseDTO> createAccount(@Valid @RequestBody CreateAccountDTO request) {
