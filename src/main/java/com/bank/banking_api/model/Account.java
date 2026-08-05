@@ -31,8 +31,16 @@ public class Account {
     @Column(nullable = false)
     private BigDecimal balance;
 
+//    @Enumerated(EnumType.STRING)
+//    @Column(nullable = false)
+//    @Builder.Default
+//    private AccountStatus status = AccountStatus.ACTIVE;
+//    @Enumerated(EnumType.STRING)
+//    @Column(name = "status", nullable = false, length = 20)
+//    @Builder.Default
+//    private AccountStatus status = AccountStatus.ACTIVE;
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "status", nullable = false, columnDefinition = "VARCHAR(20)")
     @Builder.Default
     private AccountStatus status = AccountStatus.ACTIVE;
 
