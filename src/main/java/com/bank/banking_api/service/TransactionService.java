@@ -25,45 +25,60 @@ public class TransactionService {
     private final TransactionRepository transactionRepository;
     private final AccountService accountService;
 
-    @Transactional
+    @Transactional(noRollbackFor = {IllegalArgumentException.class, InsufficientBalanceException.class})
     public TransactionResponseDTO transferFunds(TransferRequestDTO request) {
         String fromAccountNumber = request.getFromAccountNumber();
         String toAccountNumber = request.getToAccountNumber();
 
-        if (fromAccountNumber.equals(toAccountNumber)) {
-            throw new IllegalArgumentException("Cannot transfer funds to the same account");
+        try {
+            if (fromAccountNumber.equals(toAccountNumber)) {
+                throw new IllegalArgumentException("Cannot transfer funds to the same account");
+            }
+
+            Account fromAccount = accountService.findAccountByNumberWithLock(fromAccountNumber);
+            Account toAccount = accountService.findAccountByNumberWithLock(toAccountNumber);
+
+            accountService.ensureAccountIsActive(fromAccount);
+            accountService.ensureAccountIsActive(toAccount);
+
+            if (fromAccount.getBalance().compareTo(request.getAmount()) < 0) {
+                throw new InsufficientBalanceException(
+                        "Insufficient balance in account " + fromAccountNumber
+                );
+            }
+
+            fromAccount.setBalance(fromAccount.getBalance().subtract(request.getAmount()));
+            toAccount.setBalance(toAccount.getBalance().add(request.getAmount()));
+
+            accountRepository.save(fromAccount);
+            accountRepository.save(toAccount);
+
+            Transaction transaction = Transaction.builder()
+                    .fromAccountNumber(fromAccountNumber)
+                    .toAccountNumber(toAccountNumber)
+                    .amount(request.getAmount())
+                    .type(TransactionType.TRANSFER)
+                    .timestamp(LocalDateTime.now())
+                    .status(TransactionStatus.SUCCESS)
+                    .build();
+
+            Transaction savedTransaction = transactionRepository.save(transaction);
+            return mapToDTO(savedTransaction);
+
+        } catch (Exception ex) {
+            Transaction failedTransaction = Transaction.builder()
+                    .fromAccountNumber(fromAccountNumber)
+                    .toAccountNumber(toAccountNumber)
+                    .amount(request.getAmount())
+                    .type(TransactionType.TRANSFER)
+                    .timestamp(LocalDateTime.now())
+                    .status(TransactionStatus.FAILED)
+                    .failureReason(ex.getMessage())
+                    .build();
+
+            transactionRepository.save(failedTransaction);
+            throw ex;
         }
-
-        Account fromAccount = accountService.findAccountByNumberWithLock(fromAccountNumber);
-        Account toAccount = accountService.findAccountByNumberWithLock(toAccountNumber);
-
-        accountService.ensureAccountIsActive(fromAccount);
-        accountService.ensureAccountIsActive(toAccount);
-
-        if (fromAccount.getBalance().compareTo(request.getAmount()) < 0) {
-            throw new InsufficientBalanceException(
-                    "Insufficient balance in account " + fromAccountNumber
-            );
-        }
-
-        fromAccount.setBalance(fromAccount.getBalance().subtract(request.getAmount()));
-        toAccount.setBalance(toAccount.getBalance().add(request.getAmount()));
-
-        accountRepository.save(fromAccount);
-        accountRepository.save(toAccount);
-
-        Transaction transaction = Transaction.builder()
-                .fromAccountNumber(fromAccountNumber)
-                .toAccountNumber(toAccountNumber)
-                .amount(request.getAmount())
-                .type(TransactionType.TRANSFER)
-                .timestamp(LocalDateTime.now())
-                .status(TransactionStatus.SUCCESS)
-                .build();
-
-        Transaction savedTransaction = transactionRepository.save(transaction);
-
-        return mapToDTO(savedTransaction);
     }
 
     public List<TransactionResponseDTO> getTransactionHistory(String accountNumber) {

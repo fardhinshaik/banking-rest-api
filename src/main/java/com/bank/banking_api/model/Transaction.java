@@ -33,4 +33,6 @@ public class Transaction {
 
     @Column(nullable = false)
     private LocalDateTime timestamp;
+
+    private String failureReason;
 }
