@@ -1,11 +1,11 @@
-🚀 **Live API Documentation:** [Explore Live Swagger UI](https://spring-boot-banking-api.onrender.com)
-
 # 🏦 Banking API — Production-Ready RESTful Financial Services
 
 [![Java](https://img.shields.io/badge/Java-17%2B-orange.svg)](https://www.oracle.com/java/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-brightgreen.svg)](https://spring.io/projects/spring-boot)
 [![Database](https://img.shields.io/badge/Database-PostgreSQL%20%7C%20H2-blue.svg)](https://www.postgresql.org/)
 [![Deployment](https://img.shields.io/badge/Deployment-Render-purple.svg)](https://render.com/)
+
+🚀 **Live API Documentation:** [Explore Live Swagger UI](https://spring-boot-banking-api.onrender.com)
 
 A secure, transactional, and scalable Banking REST API built with **Spring Boot 3**, **Spring Security**, and **Spring Data JPA**. Designed with robust financial controls including pessimistic database locking, strict account ownership validation, transactional rollback protection, and audit logging.
 
