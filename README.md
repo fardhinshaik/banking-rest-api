@@ -61,9 +61,10 @@ To prevent unauthorized debiting, every incoming transaction request resolves th
 if (!fromAccount.getUser().getUsername().equals(authenticatedUsername)) {
     throw new IllegalArgumentException("Unauthorized: You do not own source account " + fromAccountNumber);
 }
-2. Thread-Safe Fund Transfers
+```
+### 2. Thread-Safe Fund Transfers
 To protect against double-spending and dynamic balance updates in multi-threaded environments, accounts are queried with write-level locks before modifying balances:
-
+```java
 @Lock(LockModeType.PESSIMISTIC_WRITE)
 Optional<Account> findByAccountNumber(String accountNumber);
 ```
@@ -223,9 +224,9 @@ java -jar target/banking-api-0.0.1-SNAPSHOT.jar
 
 ---
 
-# 📄 License
+## 📄 License
 
-This project is licensed under the **MIT License**.
+This project is open-source and available under the [MIT License](LICENSE).
 
 Feel free to use, modify, and distribute this project in accordance with the license terms.
 
