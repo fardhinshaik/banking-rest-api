@@ -3,7 +3,6 @@ package com.bank.banking_api.controller;
 import com.bank.banking_api.dto.CreateUserDTO;
 import com.bank.banking_api.dto.UserResponseDTO;
 import com.bank.banking_api.service.UserService;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,15 +15,14 @@ public class UserController {
 
     private final UserService userService;
 
+    // Public Guest Sign-Up
     @PostMapping
-    public ResponseEntity<UserResponseDTO> createUser(@Valid @RequestBody CreateUserDTO request) {
-        UserResponseDTO response = userService.createUser(request);
-        return new ResponseEntity<>(response, HttpStatus.CREATED);
+    public ResponseEntity<UserResponseDTO> registerUser(@RequestBody CreateUserDTO request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(userService.createUser(request));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<UserResponseDTO> getUserById(@PathVariable Long id) {
-        UserResponseDTO response = userService.getUserById(id);
-        return new ResponseEntity<>(response, HttpStatus.OK);
+        return ResponseEntity.ok(userService.getUserById(id));
     }
 }

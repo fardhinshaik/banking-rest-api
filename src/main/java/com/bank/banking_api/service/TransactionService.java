@@ -26,7 +26,7 @@ public class TransactionService {
     private final AccountService accountService;
 
     @Transactional(noRollbackFor = {IllegalArgumentException.class, InsufficientBalanceException.class})
-    public TransactionResponseDTO transferFunds(TransferRequestDTO request) {
+    public TransactionResponseDTO transferFunds(TransferRequestDTO request, String authenticatedUsername) {
         String fromAccountNumber = request.getFromAccountNumber();
         String toAccountNumber = request.getToAccountNumber();
 
@@ -36,6 +36,12 @@ public class TransactionService {
             }
 
             Account fromAccount = accountService.findAccountByNumberWithLock(fromAccountNumber);
+
+            // SECURITY FIX: Ownership Check
+            if (!fromAccount.getUser().getUsername().equals(authenticatedUsername)) {
+                throw new IllegalArgumentException("Unauthorized: You do not own source account " + fromAccountNumber);
+            }
+
             Account toAccount = accountService.findAccountByNumberWithLock(toAccountNumber);
 
             accountService.ensureAccountIsActive(fromAccount);
@@ -81,8 +87,14 @@ public class TransactionService {
         }
     }
 
-    public List<TransactionResponseDTO> getTransactionHistory(String accountNumber) {
-        accountService.findAccountByNumber(accountNumber);
+    @Transactional(readOnly = true)
+    public List<TransactionResponseDTO> getTransactionHistory(String accountNumber, String authenticatedUsername) {
+        Account account = accountService.findAccountByNumber(accountNumber);
+
+        // Ownership Check (Triggers lazy loading of User)
+        if (!account.getUser().getUsername().equals(authenticatedUsername)) {
+            throw new IllegalArgumentException("Unauthorized: You cannot view transaction history for this account");
+        }
 
         List<Transaction> transactions = transactionRepository
                 .findByFromAccountNumberOrToAccountNumberOrderByTimestampDesc(

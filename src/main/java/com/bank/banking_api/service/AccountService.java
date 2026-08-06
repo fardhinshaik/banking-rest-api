@@ -15,6 +15,7 @@ import com.bank.banking_api.model.User;
 import com.bank.banking_api.repository.AccountRepository;
 import com.bank.banking_api.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,7 +32,9 @@ public class AccountService {
     private final TransactionRepository transactionRepository;
     private final UserService userService;
 
-    // Added: Method to get all accounts for GET /api/v1/accounts
+    // ADMIN ONLY: Retrieve all accounts
+    // Keep DB session open during DTO mapping to prevent LazyInitializationException
+    @Transactional(readOnly = true)
     public List<AccountResponseDTO> getAllAccounts() {
         return accountRepository.findAll()
                 .stream()
@@ -39,16 +42,19 @@ public class AccountService {
                 .collect(Collectors.toList());
     }
 
+
+    // CUSTOMER ONLY: Automatically binds account creation to the logged-in user
     @Transactional
-    public AccountResponseDTO createAccount(CreateAccountDTO request) {
-        User user = userService.findUserById(request.getUserId());
+    public AccountResponseDTO createAccountForUser(String authenticatedUsername, CreateAccountDTO request) {
+        User user = userService.findUserByUsername(authenticatedUsername);
 
         String accountNumber = generateAccountNumber();
 
         Account account = Account.builder()
                 .accountNumber(accountNumber)
-                .balance(request.getInitialDeposit())
+                .balance(request.getInitialDeposit() != null ? request.getInitialDeposit() : java.math.BigDecimal.ZERO)
                 .user(user)
+                .status(AccountStatus.ACTIVE)
                 .build();
 
         Account savedAccount = accountRepository.save(account);
@@ -56,15 +62,17 @@ public class AccountService {
         return mapToDTO(savedAccount);
     }
 
-    public AccountResponseDTO getAccountByNumber(String accountNumber) {
+    public AccountResponseDTO getAccountByNumber(String accountNumber, String authenticatedUsername) {
         Account account = findAccountByNumber(accountNumber);
+        verifyOwnership(account, authenticatedUsername);
 
         return mapToDTO(account);
     }
 
     @Transactional
-    public AccountResponseDTO deposit(DepositRequestDTO request) {
+    public AccountResponseDTO deposit(DepositRequestDTO request, String authenticatedUsername) {
         Account account = findAccountByNumberWithLock(request.getAccountNumber());
+        verifyOwnership(account, authenticatedUsername); // Prevents depositing to other users' accounts
         ensureAccountIsActive(account);
 
         account.setBalance(account.getBalance().add(request.getAmount()));
@@ -76,8 +84,9 @@ public class AccountService {
     }
 
     @Transactional
-    public AccountResponseDTO withdraw(WithdrawRequestDTO request) {
+    public AccountResponseDTO withdraw(WithdrawRequestDTO request, String authenticatedUsername) {
         Account account = findAccountByNumberWithLock(request.getAccountNumber());
+        verifyOwnership(account, authenticatedUsername); // Prevents withdrawing from other users' accounts
         ensureAccountIsActive(account);
 
         if (account.getBalance().compareTo(request.getAmount()) < 0) {
@@ -117,6 +126,13 @@ public class AccountService {
     public void ensureAccountIsActive(Account account) {
         if (account.getStatus() != AccountStatus.ACTIVE) {
             throw new IllegalStateException("Account is not ACTIVE");
+        }
+    }
+
+    // Helper: Throws 403 Access Denied if logged-in username does not match account owner
+    private void verifyOwnership(Account account, String username) {
+        if (!account.getUser().getUsername().equals(username)) {
+            throw new AccessDeniedException("Access Denied: You do not own account " + account.getAccountNumber());
         }
     }
 

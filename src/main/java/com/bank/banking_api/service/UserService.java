@@ -6,6 +6,7 @@ import com.bank.banking_api.exception.ResourceNotFoundException;
 import com.bank.banking_api.model.User;
 import com.bank.banking_api.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,12 +15,20 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Transactional
     public UserResponseDTO createUser(CreateUserDTO request) {
+        if (userRepository.findByUsername(request.getUsername()).isPresent()) {
+            throw new IllegalArgumentException("Username '" + request.getUsername() + "' is already taken");
+        }
+
         User user = User.builder()
                 .fullName(request.getFullName())
+                .username(request.getUsername())
                 .email(request.getEmail())
+                .password(passwordEncoder.encode(request.getPassword())) // Hashes plain text password
+                .role("ROLE_USER") // Default customer role
                 .build();
 
         User savedUser = userRepository.save(user);
@@ -35,6 +44,13 @@ public class UserService {
         return userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "User with ID " + id + " not found"
+                ));
+    }
+
+    public User findUserByUsername(String username) {
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "User with username '" + username + "' not found"
                 ));
     }
 
