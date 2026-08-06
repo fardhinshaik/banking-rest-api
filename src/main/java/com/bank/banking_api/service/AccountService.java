@@ -16,9 +16,12 @@ import com.bank.banking_api.repository.AccountRepository;
 import com.bank.banking_api.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -33,7 +36,6 @@ public class AccountService {
     private final UserService userService;
 
     // ADMIN ONLY: Retrieve all accounts
-    // Keep DB session open during DTO mapping to prevent LazyInitializationException
     @Transactional(readOnly = true)
     public List<AccountResponseDTO> getAllAccounts() {
         return accountRepository.findAll()
@@ -42,29 +44,35 @@ public class AccountService {
                 .collect(Collectors.toList());
     }
 
-
-    // CUSTOMER ONLY: Automatically binds account creation to the logged-in user
+    // CUSTOMER: Automatically binds new account creation to the logged-in user
     @Transactional
     public AccountResponseDTO createAccountForUser(String authenticatedUsername, CreateAccountDTO request) {
         User user = userService.findUserByUsername(authenticatedUsername);
 
         String accountNumber = generateAccountNumber();
+        BigDecimal initialDeposit = (request.getInitialDeposit() != null) ? request.getInitialDeposit() : BigDecimal.ZERO;
 
         Account account = Account.builder()
                 .accountNumber(accountNumber)
-                .balance(request.getInitialDeposit() != null ? request.getInitialDeposit() : java.math.BigDecimal.ZERO)
+                .balance(initialDeposit)
                 .user(user)
                 .status(AccountStatus.ACTIVE)
                 .build();
 
         Account savedAccount = accountRepository.save(account);
 
+        // Record initial deposit in transaction logs if initial balance > 0
+        if (initialDeposit.compareTo(BigDecimal.ZERO) > 0) {
+            recordDeposit(savedAccount, initialDeposit);
+        }
+
         return mapToDTO(savedAccount);
     }
 
+    @Transactional(readOnly = true)
     public AccountResponseDTO getAccountByNumber(String accountNumber, String authenticatedUsername) {
         Account account = findAccountByNumber(accountNumber);
-        verifyOwnership(account, authenticatedUsername);
+        verifyOwnershipOrAdmin(account, authenticatedUsername);
 
         return mapToDTO(account);
     }
@@ -72,8 +80,14 @@ public class AccountService {
     @Transactional
     public AccountResponseDTO deposit(DepositRequestDTO request, String authenticatedUsername) {
         Account account = findAccountByNumberWithLock(request.getAccountNumber());
-        verifyOwnership(account, authenticatedUsername); // Prevents depositing to other users' accounts
+
+        // Standard users can only deposit into their own account; Admins can deposit into any account
+        verifyOwnershipOrAdmin(account, authenticatedUsername);
         ensureAccountIsActive(account);
+
+        if (request.getAmount() == null || request.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Deposit amount must be greater than zero");
+        }
 
         account.setBalance(account.getBalance().add(request.getAmount()));
 
@@ -86,8 +100,14 @@ public class AccountService {
     @Transactional
     public AccountResponseDTO withdraw(WithdrawRequestDTO request, String authenticatedUsername) {
         Account account = findAccountByNumberWithLock(request.getAccountNumber());
-        verifyOwnership(account, authenticatedUsername); // Prevents withdrawing from other users' accounts
+
+        // Users can strictly withdraw ONLY from their own accounts
+        verifyOwnership(account, authenticatedUsername);
         ensureAccountIsActive(account);
+
+        if (request.getAmount() == null || request.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Withdrawal amount must be greater than zero");
+        }
 
         if (account.getBalance().compareTo(request.getAmount()) < 0) {
             throw new InsufficientBalanceException("Insufficient funds for withdrawal");
@@ -109,6 +129,7 @@ public class AccountService {
         return mapToDTO(accountRepository.save(account));
     }
 
+    @Transactional(readOnly = true)
     public Account findAccountByNumber(String accountNumber) {
         return accountRepository.findByAccountNumber(accountNumber)
                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -116,6 +137,7 @@ public class AccountService {
                 ));
     }
 
+    @Transactional
     public Account findAccountByNumberWithLock(String accountNumber) {
         return accountRepository.findByAccountNumberWithLock(accountNumber)
                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -129,10 +151,21 @@ public class AccountService {
         }
     }
 
-    // Helper: Throws 403 Access Denied if logged-in username does not match account owner
+    // Helper: Throws 403 Access Denied if logged-in user isn't the owner
     private void verifyOwnership(Account account, String username) {
         if (!account.getUser().getUsername().equals(username)) {
             throw new AccessDeniedException("Access Denied: You do not own account " + account.getAccountNumber());
+        }
+    }
+
+    // Helper: Allows either the account owner OR an administrator
+    private void verifyOwnershipOrAdmin(Account account, String username) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean isAdmin = auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+        if (!isAdmin && !account.getUser().getUsername().equals(username)) {
+            throw new AccessDeniedException("Access Denied: You do not have permission for account " + account.getAccountNumber());
         }
     }
 
@@ -146,7 +179,7 @@ public class AccountService {
                 .build();
     }
 
-    private void recordDeposit(Account account, java.math.BigDecimal amount) {
+    private void recordDeposit(Account account, BigDecimal amount) {
         Transaction transaction = Transaction.builder()
                 .toAccountNumber(account.getAccountNumber())
                 .amount(amount)
@@ -158,7 +191,7 @@ public class AccountService {
         transactionRepository.save(transaction);
     }
 
-    private void recordWithdrawal(Account account, java.math.BigDecimal amount) {
+    private void recordWithdrawal(Account account, BigDecimal amount) {
         Transaction transaction = Transaction.builder()
                 .fromAccountNumber(account.getAccountNumber())
                 .amount(amount)
