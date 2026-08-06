@@ -61,3 +61,179 @@ To prevent unauthorized debiting, every incoming transaction request resolves th
 if (!fromAccount.getUser().getUsername().equals(authenticatedUsername)) {
     throw new IllegalArgumentException("Unauthorized: You do not own source account " + fromAccountNumber);
 }
+2. Thread-Safe Fund Transfers
+To protect against double-spending and dynamic balance updates in multi-threaded environments, accounts are queried with write-level locks before modifying balances:
+
+@Lock(LockModeType.PESSIMISTIC_WRITE)
+Optional<Account> findByAccountNumber(String accountNumber);
+```
+## 💻 Local Setup & Installation
+
+### Prerequisites
+
+Before running the project, ensure you have the following installed:
+
+- ☕ Java 17 JDK or later
+- 📦 Maven 3.8+ (or use the included Maven Wrapper `./mvnw`)
+- 🐘 PostgreSQL (for production) or H2 Database (for local development)
+- Git
+
+---
+
+### 1️⃣ Clone the Repository
+
+```bash
+git clone https://github.com/your-username/banking-api.git
+cd banking-api
+```
+
+---
+
+### 2️⃣ Build the Application
+
+Using Maven Wrapper:
+
+```bash
+./mvnw clean package -DskipTests
+```
+
+Or if Maven is installed globally:
+
+```bash
+mvn clean package -DskipTests
+```
+
+---
+
+### 3️⃣ Run the Application
+
+Using Maven Wrapper:
+
+```bash
+./mvnw spring-boot:run
+```
+
+Or:
+
+```bash
+mvn spring-boot:run
+```
+
+The application will start at:
+
+```
+http://localhost:8081
+```
+
+---
+
+### 📖 API Documentation (Swagger)
+
+After the application starts, open:
+
+```
+http://localhost:8081/swagger-ui.html
+```
+
+or (SpringDoc v2)
+
+```
+http://localhost:8081/swagger-ui/index.html
+```
+
+---
+
+### 🗄️ H2 Database Console (Local Development)
+
+Access the H2 Console:
+
+```
+http://localhost:8081/h2-console
+```
+
+Database Configuration:
+
+| Property | Value |
+|----------|-------|
+| JDBC URL | `jdbc:h2:file:./data/bankdb` |
+| Username | `sa` |
+| Password | *(leave blank)* |
+
+---
+
+# 🌐 Production Environment Variables
+
+Configure the following environment variables when deploying to platforms such as **Render**, **Railway**, **AWS**, or **Azure**.
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `SPRING_DATASOURCE_URL` | PostgreSQL Connection URL | `jdbc:postgresql://db-host:5432/bankdb` |
+| `SPRING_DATASOURCE_USERNAME` | Database Username | `postgres` |
+| `SPRING_DATASOURCE_PASSWORD` | Database Password | `your_secure_password` |
+| `SPRING_JPA_HIBERNATE_DDL_AUTO` | Hibernate Schema Strategy | `update` |
+| `PORT` | Server Port | `8080` |
+
+---
+
+# 🧪 Default Test Credentials
+
+When running the project for the first time, the `DataInitializer` automatically seeds the database with sample users.
+
+| Role | Username | Password | Purpose |
+|------|----------|----------|---------|
+| 👑 Administrator | `admin_boss` | `admin123` | Manage users, accounts, and transactions |
+| 👤 Standard User | `alice_user` | `password123` | Customer testing (Initial Balance: **$1,000**) |
+| 👤 Standard User | `bob_user` | `password123` | Customer testing (Initial Balance: **$500**) |
+
+---
+
+# 🚀 Running Tests
+
+Run all unit tests:
+
+```bash
+./mvnw test
+```
+
+Or
+
+```bash
+mvn test
+```
+
+---
+
+# 📦 Build Executable JAR
+
+```bash
+./mvnw clean package
+```
+
+The generated JAR will be available in:
+
+```
+target/
+```
+
+Run it using:
+
+```bash
+java -jar target/banking-api-0.0.1-SNAPSHOT.jar
+```
+
+---
+
+# 📄 License
+
+This project is licensed under the **MIT License**.
+
+Feel free to use, modify, and distribute this project in accordance with the license terms.
+
+---
+
+## ❤️ Support
+
+If you found this project useful, consider giving it a ⭐ on GitHub.
+Contributions, issues, and feature requests are always welcome!
+
+Happy Coding! 🚀
